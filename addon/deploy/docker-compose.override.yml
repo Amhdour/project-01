@@ -1,0 +1,13 @@
+services:
+  api_server:
+    environment:
+      TRUST_STORE_BACKEND: filesystem
+      TRUST_STORE_FILESYSTEM_DIR: /app/.trust_evidence_addon
+      TRUST_RETENTION_DAYS: 30
+      TRUST_JWT_ISSUER: trust-addon
+      TRUST_JWT_AUDIENCE: trust-addon
+    volumes:
+      - trust_addon_data:/app/.trust_evidence_addon
+
+volumes:
+  trust_addon_data:
