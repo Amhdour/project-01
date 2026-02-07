@@ -1,0 +1,12 @@
+{{- if .Values.trustAddon.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: trust-addon-placeholder
+spec:
+  selector:
+    app: trust-addon-placeholder
+  ports:
+    - port: 80
+      targetPort: 80
+{{- end }}

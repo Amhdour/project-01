@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC
 from datetime import datetime
+from datetime import timezone
 from datetime import timedelta
 from typing import Any
 
@@ -33,8 +33,21 @@ from trust_evidence_layer.types import DecisionRecord
 from trust_evidence_layer.types import EvidenceBundleUser
 from trust_evidence_layer.types import TrustEvidenceResponse
 
-CONTRACT_KEYS = ["answer_text", "evidence_bundle_user", "decision_record", "trace_id"]
+CONTRACT_KEYS = ["contract_version", "decision", "answer", "citations", "attribution", "audit_pack_ref", "policy_trace", "failure_mode", "answer_text", "evidence_bundle_user", "decision_record", "trace_id"]
 
+
+
+
+def _has_missing_critical_provenance(raw_evidence: list[dict[str, Any]]) -> tuple[bool, int]:
+    missing_count = 0
+    for item in raw_evidence:
+        prov = item.get("provenance") if isinstance(item, dict) else None
+        if not isinstance(prov, dict):
+            continue
+        missing_fields = prov.get("missing_fields")
+        if isinstance(missing_fields, list) and missing_fields:
+            missing_count += 1
+    return missing_count > 0, missing_count
 
 def assert_contract_shape(payload: dict[str, Any]) -> None:
     if list(payload.keys()) != CONTRACT_KEYS:
@@ -57,9 +70,9 @@ class TrustEvidenceGate:
 
         expiry_at = None
         if policy == "30_DAYS":
-            expiry_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+            expiry_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
         elif policy == "90_DAYS":
-            expiry_at = (datetime.now(UTC) + timedelta(days=90)).isoformat()
+            expiry_at = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
 
         return {
             "retention_policy": policy,
@@ -75,7 +88,7 @@ class TrustEvidenceGate:
         context: dict[str, Any],
     ) -> TrustEvidenceResponse:
         trace_id = generate_trace_id()
-        now_iso = datetime.now(UTC).isoformat()
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         normalized_evidence = normalize_raw_evidence(
             retrieved_evidence,
@@ -116,6 +129,13 @@ class TrustEvidenceGate:
 
         contextual_failure_modes = self._normalize_failure_modes(context)
         failure_modes = sorted(set(failure_modes + contextual_failure_modes))
+
+        missing_critical_provenance, missing_provenance_count = _has_missing_critical_provenance(
+            retrieved_evidence
+        )
+        trust_mode_effective = str(context.get("trust_mode_effective") or "")
+        if missing_critical_provenance and trust_mode_effective == "enforce":
+            failure_modes.append("critical_provenance_missing")
 
         unsupported_count = metrics["num_claims_unsupported"]
         factual_violations = sum(
@@ -161,6 +181,9 @@ class TrustEvidenceGate:
             refusal_reasons.append(f"REFUSE: kill_switch_active ({halt_reason})")
             failure_modes.append("kill_switch_active")
 
+        if missing_critical_provenance and trust_mode_effective == "enforce":
+            refusal_reasons.append("REFUSE: critical_provenance_missing")
+
         if refusal_reasons:
             final_answer = "\n".join(refusal_reasons)
         else:
@@ -201,6 +224,8 @@ class TrustEvidenceGate:
                 retrieval_metadata={
                     "contract_version": "1.0",
                     "evidence_count": len(evidence_sources),
+                    "missing_critical_provenance": missing_critical_provenance,
+                    "missing_provenance_count": missing_provenance_count,
                     "jurisdiction_compliance": {
                         "allowed_jurisdictions": sorted({j.upper() for j in allowed_jurisdictions}),
                         "accepted_evidence": accepted_meta,

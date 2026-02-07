@@ -5,6 +5,9 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Any
 
+from trust_evidence_layer.schema import AttributionItem
+from trust_evidence_layer.schema import PolicyTraceEntry
+
 
 @dataclass(frozen=True)
 class EvidenceSource:
@@ -56,10 +59,49 @@ class TrustEvidenceResponse:
     trace_id: str
 
     def to_ordered_dict(self) -> dict[str, Any]:
+        evidence_sources = [asdict(s) for s in self.evidence_bundle_user.sources]
+        policy_trace = [
+            PolicyTraceEntry(
+                policy_id=str(policy.get("policy_id", "")),
+                passed=bool(policy.get("passed", False)),
+                version=str(policy.get("version", "unknown")),
+            ).model_dump()
+            for policy in self.decision_record.policy_checks
+        ]
+        failure_mode = (
+            self.decision_record.failure_modes[0]
+            if self.decision_record.failure_modes
+            else "none"
+        )
+        answer = self.answer_text
+        decision = (
+            "REFUSE"
+            if answer.startswith("REFUSE:")
+            else "UNKNOWN"
+            if answer.startswith("UNKNOWN:")
+            else "ALLOW"
+        )
+        attribution = [
+            AttributionItem(
+                source_id=str(source.get("id", "")),
+                title=source.get("title"),
+                uri=source.get("uri_or_path"),
+            ).model_dump()
+            for source in evidence_sources
+        ]
+
         return {
+            "contract_version": "1.0",
+            "decision": decision,
+            "answer": answer,
+            "citations": self.evidence_bundle_user.citations,
+            "attribution": attribution,
+            "audit_pack_ref": f"/trust/audit-packs/{self.trace_id}",
+            "policy_trace": policy_trace,
+            "failure_mode": failure_mode,
             "answer_text": self.answer_text,
             "evidence_bundle_user": {
-                "sources": [asdict(s) for s in self.evidence_bundle_user.sources],
+                "sources": evidence_sources,
                 "citations": self.evidence_bundle_user.citations,
                 "retrieval_metadata": self.evidence_bundle_user.retrieval_metadata,
             },

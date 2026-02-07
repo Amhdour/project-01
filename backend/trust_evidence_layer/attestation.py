@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC
 from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +39,7 @@ def generate_attestation_artifact(
         "policy_change_log": get_policy_change_log(),
         "risk_register": as_dicts(get_active_risks()),
         "tests_executed": tests_executed,
-        "last_evaluation_timestamp": datetime.now(UTC).isoformat(),
+        "last_evaluation_timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))

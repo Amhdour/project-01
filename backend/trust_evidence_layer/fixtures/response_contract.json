@@ -1,0 +1,10 @@
+{
+  "contract_version": "1.0",
+  "decision": "ALLOW",
+  "answer": "Example gated answer",
+  "citations": [{"citation_number": 1, "source_id": "doc-1"}],
+  "attribution": [{"source_id": "doc-1", "title": "Doc 1", "uri": "https://example.local/doc-1"}],
+  "audit_pack_ref": "/trust/audit-packs/trace-123",
+  "policy_trace": [{"policy_id": "fail_closed_default", "passed": true, "version": "1.0.0"}],
+  "failure_mode": "none"
+}

@@ -1,0 +1,6 @@
+{
+  "bundle_version": "1.0.0",
+  "policies": [
+    {"policy_id": "fail_closed_default", "version": "1.0.0", "description": "Fail closed"}
+  ]
+}

@@ -1,0 +1,5 @@
+ALTER TABLE traces ADD COLUMN retention_until TEXT;
+ALTER TABLE traces ADD COLUMN legal_hold INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE audit_packs ADD COLUMN retention_until TEXT;
+ALTER TABLE audit_packs ADD COLUMN legal_hold INTEGER NOT NULL DEFAULT 0;

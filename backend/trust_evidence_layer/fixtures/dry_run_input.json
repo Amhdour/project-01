@@ -1,0 +1,5 @@
+{
+  "draft_answer_text": "Sky is blue",
+  "retrieved_evidence": [{"id": "doc1", "snippet": "Sky is blue"}],
+  "context": {"origin": "api"}
+}

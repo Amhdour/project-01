@@ -1,0 +1,13 @@
+{
+  "trace_id": "tr_001",
+  "answer": "Policy requires documented retention controls.",
+  "citations": [
+    {
+      "citation_id": "c1",
+      "uri": "https://example.com/policy"
+    }
+  ],
+  "policy_summary": "Allow with evidence.",
+  "evidence_status": "complete",
+  "warnings": []
+}

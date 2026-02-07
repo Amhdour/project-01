@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC
 from datetime import datetime
+from datetime import timezone
 from typing import Any
 
 
@@ -105,5 +105,5 @@ def evaluate_policy(
         "acceptance_tests": definition.acceptance_tests,
         "passed": passed,
         "details": details,
-        "evaluated_at": datetime.now(UTC).isoformat(),
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
     }

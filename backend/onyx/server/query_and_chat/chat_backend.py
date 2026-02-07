@@ -99,6 +99,7 @@ from onyx.server.query_and_chat.session_loading import (
 )
 from onyx.server.query_and_chat.streaming_models import Packet
 from onyx.server.query_and_chat.token_limit import check_token_rate_limits
+from onyx.server.query_and_chat.trust_sidecar import TrustEventEmitter
 from onyx.server.usage_limits import check_llm_cost_limit_for_provider
 from onyx.server.usage_limits import check_usage_and_raise
 from onyx.server.usage_limits import is_usage_limits_enabled
@@ -110,6 +111,8 @@ from trust_evidence_layer.boundary import assert_no_bypass_inputs
 from trust_evidence_layer.boundary import assert_no_raw_output
 from trust_evidence_layer.gate import TrustEvidenceGate
 from trust_evidence_layer.host.onyx_adapter import OnyxHostAdapter
+from trust_evidence_layer.integration_controls import get_trust_mode
+from trust_evidence_layer.integration_controls import maybe_apply_trust
 from shared_configs.contextvars import get_current_tenant_id
 
 logger = setup_logger()
@@ -124,7 +127,8 @@ def _gate_host_response(
 ) -> dict:
     adapter = OnyxHostAdapter()
     gate = TrustEvidenceGate()
-    context = context_override or adapter.get_request_metadata(host_context)
+    base_context = adapter.get_request_metadata(host_context)
+    context = {**base_context, **(context_override or {})}
 
     try:
         assert_no_bypass_inputs(host_context, context)
@@ -547,6 +551,12 @@ def handle_new_chat_message(
         event=MilestoneRecordType.RAN_QUERY,
     )
 
+    trust_emitter = TrustEventEmitter.create(
+        session_id=str(chat_message_req.chat_session_id),
+        user_id=str(user.id) if user is not None else None,
+    )
+    trust_emitter.emit_turn_start(message=chat_message_req.message)
+
     try:
         with get_session_with_current_tenant() as db_session:
             packets = stream_chat_message_objects(
@@ -560,7 +570,15 @@ def handle_new_chat_message(
                     request.headers
                 ),
             )
-            basic_result = gather_stream(packets)
+
+            def _tracked_packets() -> Generator[Packet, None, None]:
+                for packet in packets:
+                    trust_emitter.on_packet(packet)
+                    yield packet
+
+            basic_result = gather_stream(_tracked_packets())
+            trust_emitter.emit_citations_resolved(getattr(basic_result, "citation_info", []))
+            trust_emitter.emit_turn_final(basic_result)
 
             host_context = {
                 "chat_result": SimpleNamespace(
@@ -572,9 +590,20 @@ def handle_new_chat_message(
                 ),
                 "chat_message_req": chat_message_req,
             }
-            return _gate_host_response(host_context)
+            response_payload = maybe_apply_trust(
+                host_context=host_context,
+                original_response=basic_result.model_dump(),
+                gate_fn=_gate_host_response,
+                tenant_id=str(tenant_id),
+                request_path=request.url.path,
+            )
+            if isinstance(response_payload, dict):
+                response_payload["trace_id"] = trust_emitter.trace_id
+            return response_payload
     except Exception as e:
         logger.exception("Error in deprecated chat endpoint")
+        if get_trust_mode() != "enforce":
+            raise
         return _build_contract_error_response(
             request=request,
             chat_session_id=str(chat_message_req.chat_session_id)
@@ -620,6 +649,12 @@ def handle_send_chat_message(
     if get_hashed_api_key_from_request(request) or get_hashed_pat_from_request(request):
         chat_message_req.origin = MessageOrigin.API
 
+    trust_emitter = TrustEventEmitter.create(
+        session_id=str(chat_message_req.chat_session_id) if chat_message_req.chat_session_id else None,
+        user_id=str(user.id) if user is not None else None,
+    )
+    trust_emitter.emit_turn_start(message=chat_message_req.message)
+
     try:
         with get_session_with_current_tenant() as db_session:
             # Check and track non-streaming API usage limits
@@ -651,15 +686,34 @@ def handle_send_chat_message(
                 mcp_headers=chat_message_req.mcp_headers,
                 external_state_container=state_container,
             )
-            result = gather_stream_full(packets, state_container)
+
+            def _tracked_packets() -> Generator[Packet, None, None]:
+                for packet in packets:
+                    trust_emitter.on_packet(packet)
+                    yield packet
+
+            result = gather_stream_full(_tracked_packets(), state_container)
+            trust_emitter.emit_citations_resolved(getattr(result, "citation_info", []))
+            trust_emitter.emit_turn_final(result)
 
             host_context = {
                 "chat_result": result,
                 "chat_message_req": chat_message_req,
             }
-            return _gate_host_response(host_context)
+            response_payload = maybe_apply_trust(
+                host_context=host_context,
+                original_response=result.model_dump(),
+                gate_fn=_gate_host_response,
+                tenant_id=str(tenant_id),
+                request_path=request.url.path,
+            )
+            if isinstance(response_payload, dict):
+                response_payload["trace_id"] = trust_emitter.trace_id
+            return response_payload
     except Exception as e:
         logger.exception("Error in send-chat-message endpoint")
+        if get_trust_mode() != "enforce":
+            raise
         return _build_contract_error_response(
             request=request,
             chat_session_id=str(chat_message_req.chat_session_id)

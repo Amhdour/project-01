@@ -1,0 +1,23 @@
+{
+  "trace_id": "tr_001",
+  "span_id": "sp_002",
+  "parent_span_id": "sp_001",
+  "ts": "2026-02-07T18:00:01Z",
+  "host": "onyx",
+  "host_version": "Development",
+  "session_id": "sess_123",
+  "user_id": "user_123",
+  "event_type": "retrieval_batch",
+  "payload": {
+    "batch_id": "rb_01",
+    "documents": [
+      {
+        "doc_id": "doc-1",
+        "uri": "https://example.com/policy",
+        "score": 0.91
+      }
+    ]
+  },
+  "payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "schema_version": "1.0.0"
+}
