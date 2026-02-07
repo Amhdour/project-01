@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,11 @@ from trust_evidence_layer.registry import get_risk_registry
 from trust_evidence_layer.registry import get_system_behavior_claims
 from trust_evidence_layer.risk_registry import as_dicts as risks_as_dicts
 from trust_evidence_layer.storage.file_store import TraceFileStore
+from trust_evidence_layer.storage.hash_chain import HASH_ALGO
+from trust_evidence_layer.storage.hash_chain import HASH_CHAIN_ALGO
+from trust_evidence_layer.storage.hash_chain import CANONICAL_JSON_ALGO
+from trust_evidence_layer.storage.hash_chain import encode_events_jsonl
+from trust_evidence_layer.storage.hash_chain import validate_hash_chain
 from trust_evidence_layer.storage.legal_hold_store import LegalHoldStore
 from trust_evidence_layer.system_claims import as_dicts
 
@@ -106,6 +112,7 @@ class AuditPackExporter:
         context = record.get("context")
         retention = record.get("retention")
         replay_inputs = record.get("replay_inputs")
+        events = record.get("events") if isinstance(record.get("events"), list) else []
         if (
             not isinstance(response, dict)
             or not isinstance(context, dict)
@@ -139,6 +146,30 @@ class AuditPackExporter:
         dump("raw_context_minimal.json", context)
         dump("retention_metadata.json", retention)
         dump("replay_inputs.json", replay_inputs)
+
+        events_jsonl_path = out_dir / "events.jsonl"
+        events_jsonl_path.write_text(encode_events_jsonl(events))
+        files["events.jsonl"] = events_jsonl_path
+
+        chain_valid = validate_hash_chain(events)
+        if not chain_valid:
+            raise ValueError("Stored events hash chain is invalid")
+
+        hash_chain_path = out_dir / "hash_chain.json"
+        hash_chain_payload = {
+            "trace_id": trace_id,
+            "event_count": len(events),
+            "chain_valid": chain_valid,
+            "head_hash": events[-1]["hash"] if events else None,
+            "genesis_hash": events[0]["prev_hash"] if events else None,
+            "algorithm": {
+                "hash": HASH_ALGO,
+                "canonical_json": CANONICAL_JSON_ALGO,
+                "hash_chain": HASH_CHAIN_ALGO,
+            },
+        }
+        hash_chain_path.write_text(json.dumps(hash_chain_payload, indent=2, ensure_ascii=False, sort_keys=True))
+        files["hash_chain.json"] = hash_chain_path
         dump("system_claims_snapshot.json", as_dicts(get_system_behavior_claims()))
         dump("risk_register_snapshot.json", risks_as_dicts(get_risk_registry()))
         dump(
@@ -187,7 +218,17 @@ class AuditPackExporter:
 
         manifest = {
             "trace_id": trace_id,
+            "created_at": record.get("created_at") or datetime.utcnow().isoformat() + "Z",
             "retention": retention,
+            "counts": {
+                "events": len(events),
+                "artifacts": len(artifact_hashes),
+            },
+            "algo_versions": {
+                "hash": HASH_ALGO,
+                "canonical_json": CANONICAL_JSON_ALGO,
+                "hash_chain": HASH_CHAIN_ALGO,
+            },
             "narrative_hash": artifact_hashes["chain_of_custody.md"],
             "artifacts": artifact_hashes,
         }
