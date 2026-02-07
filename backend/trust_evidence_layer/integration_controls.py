@@ -71,9 +71,11 @@ def maybe_apply_trust(
         stream_requested and enforce_requested and not enforce_streaming_allowed
     )
 
+    effective_mode = "observe" if downgrade_to_observe_for_stream else mode
     context_override: dict[str, Any] = {
         "tenant_id": tenant_id,
         "request_path": request_path,
+        "trust_mode_effective": effective_mode,
     }
     if downgrade_to_observe_for_stream:
         context_override["failure_modes"] = [STREAMING_ENFORCEMENT_BYPASS_MODE]

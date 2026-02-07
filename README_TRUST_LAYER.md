@@ -25,3 +25,9 @@ Provides gated chat responses with evidence attribution, policy trace, and audit
   - if this flag is `false`, behavior is downgraded to observe-only for compatibility: host/stream response remains unchanged, and trust/audit artifacts are still generated.
   - trust metadata records `streaming_enforcement_bypassed` and reason `streaming_enforce_disabled`.
   - if this flag is `true`, enforce behavior is applied.
+
+## Evidence Metadata Provenance Policy
+- Required provenance fields for audit-grade evidence: `connector_id`, `source_identifier`, `jurisdiction`, `data_classification`.
+- The Onyx host adapter extracts these strictly from document/tool metadata when available.
+- When missing, evidence records include `provenance.missing_fields` and deterministic fallback IDs (`derived:<hash>`).
+- In enforce mode, missing critical provenance triggers trust refusal (`critical_provenance_missing`); observe mode records incomplete provenance without altering host responses.

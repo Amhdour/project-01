@@ -62,6 +62,7 @@ def test_observe_mode_returns_original_and_calls_gate(monkeypatch) -> None:
     assert calls["context"] == {
         "tenant_id": "tenant-2",
         "request_path": "/api/chat/send-chat-message",
+        "trust_mode_effective": "observe",
     }
 
 
@@ -109,6 +110,7 @@ def test_streaming_enforce_disabled_runs_observe_and_marks_bypass(monkeypatch) -
     assert calls["context"] == {
         "tenant_id": "tenant-stream-1",
         "request_path": "/api/chat/send-chat-message",
+        "trust_mode_effective": "observe",
         "failure_modes": [STREAMING_ENFORCEMENT_BYPASS_MODE],
         "trust_enforcement_bypassed_reason": "streaming_enforce_disabled",
     }
