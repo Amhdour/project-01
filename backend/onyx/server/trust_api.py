@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import Header
 from fastapi import HTTPException
 from fastapi import Request
 from fastapi.responses import StreamingResponse
@@ -30,14 +29,21 @@ from onyx.server.query_and_chat.streaming_models import Packet
 from onyx.server.query_and_chat.token_limit import check_token_rate_limits
 from onyx.configs.model_configs import LITELLM_PASS_THROUGH_HEADERS
 from trust_evidence_layer.audit_pack import AuditPackExporter
+from trust_evidence_layer.auth import REQUIRED_AUDIT_SCOPE
+from trust_evidence_layer.auth import REQUIRED_GATE_SCOPE
+from trust_evidence_layer.auth import claims_from_authorization_header
+from trust_evidence_layer.auth import require_scope
 from trust_evidence_layer.registry import get_default_store
 
 router = APIRouter(prefix="/trust")
 
 
-def _require_audit_role(x_trust_role: str | None = Header(default=None)) -> None:
-    if x_trust_role not in {"trust_auditor", "trust_admin"}:
-        raise HTTPException(status_code=403, detail="Missing trust evidence retrieval role")
+
+def _require_claim(
+    required_scope: str,
+    claims: dict,
+) -> None:
+    require_scope(claims, required_scope)
 
 
 @router.post("/send-chat-message", response_model=None, tags=PUBLIC_API_TAGS)
@@ -47,7 +53,9 @@ def trust_send_chat_message(
     user: User | None = Depends(current_chat_accessible_user),
     _rate_limit_check: None = Depends(check_token_rate_limits),
     _api_key_usage_check: None = Depends(check_api_key_usage),
+    claims: dict = Depends(claims_from_authorization_header),
 ) -> dict:
+    _require_claim(REQUIRED_GATE_SCOPE, claims)
     try:
         with get_session_with_current_tenant() as db_session:
             state_container = ChatStateContainer()
@@ -83,7 +91,10 @@ def trust_stream_chat_message(
     user: User | None = Depends(current_chat_accessible_user),
     _rate_limit_check: None = Depends(check_token_rate_limits),
     _api_key_usage_check: None = Depends(check_api_key_usage),
+    claims: dict = Depends(claims_from_authorization_header),
 ) -> StreamingResponse:
+    _require_claim(REQUIRED_GATE_SCOPE, claims)
+
     def event_stream():
         yield "data: " + json.dumps({"type": "processing", "status": "running"}) + "\n\n"
         try:
@@ -129,8 +140,12 @@ def trust_stream_chat_message(
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@router.get("/audit-packs/{trace_id}", dependencies=[Depends(_require_audit_role)], tags=PUBLIC_API_TAGS)
-def get_audit_pack(trace_id: str) -> dict:
+@router.get("/audit-packs/{trace_id}", tags=PUBLIC_API_TAGS)
+def get_audit_pack(
+    trace_id: str,
+    claims: dict = Depends(claims_from_authorization_header),
+) -> dict:
+    _require_claim(REQUIRED_AUDIT_SCOPE, claims)
     exporter = AuditPackExporter(get_default_store())
     output_dir = os.getenv("TRUST_EVIDENCE_AUDIT_OUTPUT_DIR")
     zip_path = exporter.export_audit_pack(trace_id, output_dir=output_dir)
