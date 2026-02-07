@@ -1,0 +1,18 @@
+{
+  "trace_id": "tr_001",
+  "span_id": "sp_001",
+  "parent_span_id": null,
+  "ts": "2026-02-07T18:00:00Z",
+  "host": "onyx",
+  "host_version": "Development",
+  "session_id": "sess_123",
+  "user_id": "user_123",
+  "event_type": "turn_start",
+  "payload": {
+    "turn_index": 0,
+    "query": "Summarize latest policy changes",
+    "channel": "api"
+  },
+  "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "schema_version": "1.0.0"
+}

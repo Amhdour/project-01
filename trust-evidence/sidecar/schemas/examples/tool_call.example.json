@@ -1,0 +1,20 @@
+{
+  "trace_id": "tr_001",
+  "span_id": "sp_003",
+  "parent_span_id": "sp_001",
+  "ts": "2026-02-07T18:00:02Z",
+  "host": "onyx",
+  "host_version": "Development",
+  "session_id": "sess_123",
+  "user_id": "user_123",
+  "event_type": "tool_call",
+  "payload": {
+    "tool_name": "search_docs",
+    "arguments": {
+      "query": "policy"
+    },
+    "call_id": "call_1"
+  },
+  "payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "schema_version": "1.0.0"
+}

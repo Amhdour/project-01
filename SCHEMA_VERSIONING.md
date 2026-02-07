@@ -1,16 +1,26 @@
-# Schema Versioning Policy (v0.1)
+# Schema Versioning Rules
 
-## Principles
-- Every externally consumed schema has an explicit `schema_version`.
-- `trace_id` semantics are stable across minor revisions.
-- Backward-incompatible changes require a major schema version bump.
+## Version Format
+- Schemas use semantic version format: `MAJOR.MINOR.PATCH`.
+- `schema_version` is required in event payload envelopes.
 
-## Checklist
-- [x] Versioning policy documented.
-- [x] Contract changes must update changelog and compatibility docs.
-- [ ] Automated schema compatibility tests (future).
+## Compatibility Rules
+- **Backward-compatible changes** (same MAJOR):
+  - adding optional fields,
+  - adding optional enum values that consumers may ignore,
+  - tightening documentation without changing accepted instance shape.
+- **Backward-incompatible changes** (MAJOR bump required):
+  - removing or renaming required fields,
+  - changing field types,
+  - changing semantic meaning of existing required fields.
 
-## Change Types
-- **Patch**: clarifications/non-structural metadata additions.
-- **Minor**: backward-compatible fields.
-- **Major**: removed/renamed fields or semantic breaking behavior.
+## Bump Rules
+- **PATCH**: typo/docs/schema-description corrections with no accepted-instance change.
+- **MINOR**: additive optional fields and non-breaking extensions.
+- **MAJOR**: any contract-breaking structural or semantic change.
+
+## Release Checklist
+- [x] Update affected schema file `schema_version` values.
+- [x] Add or refresh minimal example fixtures.
+- [x] Ensure validation tests pass for all schema examples.
+- [x] Document changes in `CHANGELOG.md`.

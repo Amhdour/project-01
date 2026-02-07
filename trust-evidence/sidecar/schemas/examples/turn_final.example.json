@@ -1,0 +1,21 @@
+{
+  "trace_id": "tr_001",
+  "span_id": "sp_006",
+  "parent_span_id": "sp_001",
+  "ts": "2026-02-07T18:00:04Z",
+  "host": "onyx",
+  "host_version": "Development",
+  "session_id": "sess_123",
+  "user_id": "user_123",
+  "event_type": "turn_final",
+  "payload": {
+    "answer": "Policy requires documented retention controls.",
+    "latency_ms": 842,
+    "token_usage": {
+      "input": 450,
+      "output": 120
+    }
+  },
+  "payload_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "schema_version": "1.0.0"
+}
