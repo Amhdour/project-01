@@ -9,6 +9,34 @@ from trust_evidence_layer.types import TrustEvidenceResponse
 class OnyxHostAdapter(HostAdapter):
     """Thin adapter for Onyx ChatFullResponse objects."""
 
+    @staticmethod
+    def _extract_meta(doc: Any) -> tuple[str, str, dict[str, Any]]:
+        metadata = getattr(doc, "metadata", {}) or {}
+        connector_id = str(
+            metadata.get("connector_id")
+            or metadata.get("connector")
+            or metadata.get("source_id")
+            or "unknown"
+        )
+
+        jurisdiction = metadata.get("jurisdiction") or metadata.get("region") or "UNKNOWN"
+        classification = (
+            metadata.get("data_classification")
+            or metadata.get("classification")
+            or "UNKNOWN"
+        )
+        gaps: dict[str, Any] = {
+            "connector_id": connector_id,
+            "source_id": getattr(doc, "document_id", None),
+            "unknown_reasons": [],
+        }
+        if jurisdiction == "UNKNOWN":
+            gaps["unknown_reasons"].append("jurisdiction_missing_from_source_metadata")
+        if classification == "UNKNOWN":
+            gaps["unknown_reasons"].append("classification_missing_from_source_metadata")
+
+        return str(jurisdiction).upper(), str(classification).upper(), gaps
+
     def get_retrieved_evidence(self, host_context: dict[str, Any]) -> list[dict[str, Any]]:
         chat_result = host_context.get("chat_result")
         if chat_result is None:
@@ -18,6 +46,7 @@ class OnyxHostAdapter(HostAdapter):
 
         top_documents = getattr(chat_result, "top_documents", []) or []
         for doc in top_documents:
+            jurisdiction, classification, gaps = self._extract_meta(doc)
             evidence.append(
                 {
                     "id": getattr(doc, "document_id", None),
@@ -27,9 +56,10 @@ class OnyxHostAdapter(HostAdapter):
                     "origin": "INTERNAL",
                     "trust_level": "PRIMARY",
                     "confidence_weight": 0.95,
-                    "jurisdiction": "US",
-                    "data_classification": "INTERNAL",
+                    "jurisdiction": jurisdiction,
+                    "data_classification": classification,
                     "allowed_scopes": ["response_generation", "retrieval", "enforcement"],
+                    "provenance_gaps": gaps,
                 }
             )
 
@@ -37,6 +67,7 @@ class OnyxHostAdapter(HostAdapter):
         for call in tool_calls:
             tool_name = str(getattr(call, "tool_name", "") or "")
             for doc in (getattr(call, "search_docs", None) or []):
+                jurisdiction, classification, gaps = self._extract_meta(doc)
                 evidence.append(
                     {
                         "id": getattr(doc, "document_id", None),
@@ -45,9 +76,10 @@ class OnyxHostAdapter(HostAdapter):
                         "snippet": getattr(doc, "blurb", "") or "",
                         "origin": "TOOL",
                         "tool_name": tool_name,
-                        "jurisdiction": "UNKNOWN",
-                        "data_classification": "INTERNAL",
+                        "jurisdiction": jurisdiction,
+                        "data_classification": classification,
                         "allowed_scopes": ["response_generation", "retrieval"],
+                        "provenance_gaps": gaps,
                     }
                 )
 

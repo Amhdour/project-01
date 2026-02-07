@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC
 from datetime import datetime
+from datetime import timezone
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -20,7 +20,7 @@ class TraceFileStore:
 
     @staticmethod
     def _default_retention() -> dict[str, Any]:
-        expiry = datetime.now(UTC) + timedelta(days=30)
+        expiry = datetime.now(timezone.utc) + timedelta(days=30)
         return {
             "retention_policy": "30_DAYS",
             "retention_reason": "AUDIT",
@@ -42,7 +42,7 @@ class TraceFileStore:
         replay_inputs = replay_inputs if isinstance(replay_inputs, dict) else {}
         out = {
             "trace_id": trace_id,
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "retention": retention,
             "response": response_payload,
             "context": raw_context_minimal,

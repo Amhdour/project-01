@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC
 from datetime import datetime
+from datetime import timezone
 from typing import Any
 
 from trust_evidence_layer.kill_switch import activate_kill_switch
@@ -46,5 +46,5 @@ def _event(trace_id: str, incident_type: str, severity: str) -> dict[str, Any]:
         "trace_id": trace_id,
         "incident_type": incident_type,
         "severity": severity,
-        "timestamp": datetime.now(UTC).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC
 from datetime import datetime
+from datetime import timezone
 from datetime import timedelta
 from typing import Any
 
@@ -33,7 +33,7 @@ from trust_evidence_layer.types import DecisionRecord
 from trust_evidence_layer.types import EvidenceBundleUser
 from trust_evidence_layer.types import TrustEvidenceResponse
 
-CONTRACT_KEYS = ["answer_text", "evidence_bundle_user", "decision_record", "trace_id"]
+CONTRACT_KEYS = ["contract_version", "decision", "answer", "citations", "attribution", "audit_pack_ref", "policy_trace", "failure_mode", "answer_text", "evidence_bundle_user", "decision_record", "trace_id"]
 
 
 def assert_contract_shape(payload: dict[str, Any]) -> None:
@@ -57,9 +57,9 @@ class TrustEvidenceGate:
 
         expiry_at = None
         if policy == "30_DAYS":
-            expiry_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+            expiry_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
         elif policy == "90_DAYS":
-            expiry_at = (datetime.now(UTC) + timedelta(days=90)).isoformat()
+            expiry_at = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
 
         return {
             "retention_policy": policy,
@@ -75,7 +75,7 @@ class TrustEvidenceGate:
         context: dict[str, Any],
     ) -> TrustEvidenceResponse:
         trace_id = generate_trace_id()
-        now_iso = datetime.now(UTC).isoformat()
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         normalized_evidence = normalize_raw_evidence(
             retrieved_evidence,
