@@ -11,3 +11,8 @@
    - `TRUST_JWT_ISSUER=...`
    - `TRUST_JWT_AUDIENCE=...`
    - `TRUST_JWT_HS256_SECRET=...`
+4. Run verification:
+   - `./addon/tools/verify.sh`
+   - or `make verify`
+
+The verification script is portable and does **not** require `rg`/ripgrep.
