@@ -13,6 +13,14 @@ def test_serialization_preserves_top_level_key_order() -> None:
 
     parsed = json.loads(response.to_json())
     assert list(parsed.keys()) == [
+        "contract_version",
+        "decision",
+        "answer",
+        "citations",
+        "attribution",
+        "audit_pack_ref",
+        "policy_trace",
+        "failure_mode",
         "answer_text",
         "evidence_bundle_user",
         "decision_record",

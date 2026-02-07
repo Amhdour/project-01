@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trust-evidence.dev/schemas/contract_response.json",
+  "title": "Trust Contract Response",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "citation_id",
+          "uri"
+        ],
+        "properties": {
+          "citation_id": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "policy_summary": {
+      "type": "string"
+    },
+    "evidence_status": {
+      "enum": [
+        "complete",
+        "partial",
+        "none"
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "trace_id",
+    "answer",
+    "citations",
+    "policy_summary",
+    "evidence_status",
+    "warnings"
+  ]
+}

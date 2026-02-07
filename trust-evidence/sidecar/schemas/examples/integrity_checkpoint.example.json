@@ -1,0 +1,18 @@
+{
+  "trace_id": "tr_001",
+  "span_id": "sp_008",
+  "parent_span_id": "sp_001",
+  "ts": "2026-02-07T18:00:05Z",
+  "host": "onyx",
+  "host_version": "Development",
+  "session_id": "sess_123",
+  "user_id": "user_123",
+  "event_type": "integrity_checkpoint",
+  "payload": {
+    "checkpoint_type": "export",
+    "chain_head_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "event_count": 8
+  },
+  "payload_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "schema_version": "1.0.0"
+}
