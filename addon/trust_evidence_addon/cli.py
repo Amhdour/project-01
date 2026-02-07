@@ -26,5 +26,5 @@ def main() -> None:
     elif args.cmd == "compat":
         status = check_compat()
         print(
-            f"onyx_version={status.onyx_version or 'unknown'} supported={status.supported} reason={status.reason}"
+            f"onyx_version={status.onyx_version or 'unknown'} onyx_commit={status.onyx_commit or 'unknown'} mode={status.mode} supported={status.supported} reason={status.reason}"
         )

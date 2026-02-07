@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import Header
@@ -9,10 +11,14 @@ from trust_evidence_addon.auth.jwt_auth import AuthError
 from trust_evidence_addon.auth.jwt_auth import JWTConfig
 from trust_evidence_addon.auth.jwt_auth import require_claim
 from trust_evidence_addon.auth.jwt_auth import verify_hs256_jwt
+from trust_evidence_addon.compat import log_runtime_compatibility
 from trust_evidence_addon.config import AddonConfig
 from trust_evidence_addon.service import build_store
 
 router = APIRouter(prefix="/trust-addon")
+
+# Startup-time compatibility visibility (non-fatal in v0.1 observe mode).
+log_runtime_compatibility(logging.getLogger("trust_evidence_addon"))
 
 
 def _claims_from_auth_header(authorization: str | None = Header(default=None)) -> dict:
