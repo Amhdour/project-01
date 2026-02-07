@@ -110,6 +110,8 @@ from trust_evidence_layer.boundary import assert_no_bypass_inputs
 from trust_evidence_layer.boundary import assert_no_raw_output
 from trust_evidence_layer.gate import TrustEvidenceGate
 from trust_evidence_layer.host.onyx_adapter import OnyxHostAdapter
+from trust_evidence_layer.integration_controls import get_trust_mode
+from trust_evidence_layer.integration_controls import maybe_apply_trust
 from shared_configs.contextvars import get_current_tenant_id
 
 logger = setup_logger()
@@ -124,7 +126,8 @@ def _gate_host_response(
 ) -> dict:
     adapter = OnyxHostAdapter()
     gate = TrustEvidenceGate()
-    context = context_override or adapter.get_request_metadata(host_context)
+    base_context = adapter.get_request_metadata(host_context)
+    context = {**base_context, **(context_override or {})}
 
     try:
         assert_no_bypass_inputs(host_context, context)
@@ -572,9 +575,17 @@ def handle_new_chat_message(
                 ),
                 "chat_message_req": chat_message_req,
             }
-            return _gate_host_response(host_context)
+            return maybe_apply_trust(
+                host_context=host_context,
+                original_response=basic_result.model_dump(),
+                gate_fn=_gate_host_response,
+                tenant_id=str(tenant_id),
+                request_path=request.url.path,
+            )
     except Exception as e:
         logger.exception("Error in deprecated chat endpoint")
+        if get_trust_mode() != "enforce":
+            raise
         return _build_contract_error_response(
             request=request,
             chat_session_id=str(chat_message_req.chat_session_id)
@@ -657,9 +668,17 @@ def handle_send_chat_message(
                 "chat_result": result,
                 "chat_message_req": chat_message_req,
             }
-            return _gate_host_response(host_context)
+            return maybe_apply_trust(
+                host_context=host_context,
+                original_response=result.model_dump(),
+                gate_fn=_gate_host_response,
+                tenant_id=str(tenant_id),
+                request_path=request.url.path,
+            )
     except Exception as e:
         logger.exception("Error in send-chat-message endpoint")
+        if get_trust_mode() != "enforce":
+            raise
         return _build_contract_error_response(
             request=request,
             chat_session_id=str(chat_message_req.chat_session_id)
