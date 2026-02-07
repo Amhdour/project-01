@@ -18,3 +18,10 @@ Provides gated chat responses with evidence attribution, policy trace, and audit
   - `observe`: trust gate runs for trust/audit artifact generation, but client response remains unchanged.
   - `enforce`: trust gate result is returned as a 4-key contract: `{final_answer, citations, trust, audit_pack_id}`.
 
+
+## Streaming Compatibility Strategy
+- `TRUST_EVIDENCE_ENFORCE_ON_STREAMING` (default: `false`).
+- When `TRUST_EVIDENCE_MODE=enforce` and a streaming request is detected:
+  - if this flag is `false`, behavior is downgraded to observe-only for compatibility: host/stream response remains unchanged, and trust/audit artifacts are still generated.
+  - trust metadata records `streaming_enforcement_bypassed` and reason `streaming_enforce_disabled`.
+  - if this flag is `true`, enforce behavior is applied.

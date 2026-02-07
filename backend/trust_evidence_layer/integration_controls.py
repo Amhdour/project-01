@@ -7,6 +7,8 @@ from typing import Literal
 
 TrustMode = Literal["off", "observe", "enforce"]
 
+STREAMING_ENFORCEMENT_BYPASS_MODE = "streaming_enforcement_bypassed"
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
@@ -23,6 +25,15 @@ def get_trust_mode() -> TrustMode:
     if raw_mode in {"observe", "enforce"}:
         return raw_mode  # type: ignore[return-value]
     return "off"
+
+
+def should_enforce_on_streaming() -> bool:
+    return _env_bool("TRUST_EVIDENCE_ENFORCE_ON_STREAMING", default=False)
+
+
+def _is_streaming_requested(host_context: dict[str, Any]) -> bool:
+    req = host_context.get("chat_message_req")
+    return bool(getattr(req, "stream", False))
 
 
 def to_enforced_contract(gated_payload: dict[str, Any]) -> dict[str, Any]:
@@ -52,13 +63,27 @@ def maybe_apply_trust(
     if mode == "off":
         return original_response
 
-    context_override = {
+    stream_requested = _is_streaming_requested(host_context)
+    enforce_requested = mode == "enforce"
+    enforce_streaming_allowed = should_enforce_on_streaming()
+
+    downgrade_to_observe_for_stream = (
+        stream_requested and enforce_requested and not enforce_streaming_allowed
+    )
+
+    context_override: dict[str, Any] = {
         "tenant_id": tenant_id,
         "request_path": request_path,
     }
+    if downgrade_to_observe_for_stream:
+        context_override["failure_modes"] = [STREAMING_ENFORCEMENT_BYPASS_MODE]
+        context_override["trust_enforcement_bypassed_reason"] = (
+            "streaming_enforce_disabled"
+        )
+
     gated_payload = gate_fn(host_context, context_override)
 
-    if mode == "observe":
+    if mode == "observe" or downgrade_to_observe_for_stream:
         return original_response
 
     return to_enforced_contract(gated_payload)
