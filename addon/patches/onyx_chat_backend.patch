@@ -1,0 +1,17 @@
+--- a/backend/onyx/server/query_and_chat/chat_backend.py
++++ b/backend/onyx/server/query_and_chat/chat_backend.py
+@@
++try:
++    from trust_evidence_addon.host_adapter.onyx import OnyxAddonAdapter
++except Exception:  # add-on optional
++    OnyxAddonAdapter = None
+@@
+-            return maybe_apply_trust(
++            if OnyxAddonAdapter:
++                OnyxAddonAdapter().start_turn(
++                    TurnStartEvent(trace_id="", tenant_id=str(tenant_id), session_id=str(result.chat_session_id))
++                )
++            return maybe_apply_trust(
+                 host_context=host_context,
+                 original_response=result.model_dump(),
+                 gate_fn=_gate_host_response,

@@ -1,0 +1,21 @@
+{
+  "trace_id": "tr_001",
+  "span_id": "sp_007",
+  "parent_span_id": "sp_001",
+  "ts": "2026-02-07T18:00:04Z",
+  "host": "onyx",
+  "host_version": "Development",
+  "session_id": "sess_123",
+  "user_id": "user_123",
+  "event_type": "policy_decision",
+  "payload": {
+    "decision": "allow",
+    "rules_evaluated": [
+      "R-1",
+      "R-2"
+    ],
+    "policy_summary": "No blocking rule triggered"
+  },
+  "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+  "schema_version": "1.0.0"
+}

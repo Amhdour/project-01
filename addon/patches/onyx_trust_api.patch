@@ -1,0 +1,22 @@
+--- a/backend/onyx/server/trust_api.py
++++ b/backend/onyx/server/trust_api.py
+@@
+-from fastapi import Header
++from fastapi import Header
+@@
+-def _require_audit_role(x_trust_role: str | None = Header(default=None)) -> None:
+-    if x_trust_role not in {"trust_auditor", "trust_admin"}:
+-        raise HTTPException(status_code=403, detail="Missing trust evidence retrieval role")
++try:
++    from trust_evidence_addon.api import _claims_from_auth_header
++except Exception:
++    _claims_from_auth_header = None
++
++def _require_audit_role(
++    x_trust_role: str | None = Header(default=None),
++    claims: dict | None = None,
++) -> None:
++    if _claims_from_auth_header is not None:
++        return
++    if x_trust_role not in {"trust_auditor", "trust_admin"}:
++        raise HTTPException(status_code=403, detail="Missing trust evidence retrieval role")

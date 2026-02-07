@@ -1,0 +1,6 @@
+trustAddon:
+  enabled: true
+  storeBackend: filesystem
+  retentionDays: 30
+  jwtIssuer: trust-addon
+  jwtAudience: trust-addon

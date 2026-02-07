@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Trust Evidence Policy Bundle",
+  "type": "object",
+  "required": ["bundle_version", "policies"],
+  "properties": {
+    "bundle_version": {"type": "string"},
+    "policies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["policy_id", "version", "description"],
+        "properties": {
+          "policy_id": {"type": "string"},
+          "version": {"type": "string"},
+          "description": {"type": "string"},
+          "scope": {"type": "string"}
+        }
+      }
+    }
+  }
+}

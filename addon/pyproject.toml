@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trust-evidence-addon"
+version = "0.1.0"
+description = "Licensing-safe Trust & Evidence add-on for Onyx CE"
+requires-python = ">=3.10"
+
+[project.scripts]
+trust-addon = "trust_evidence_addon.cli:main"
