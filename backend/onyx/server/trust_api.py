@@ -6,16 +6,16 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import HTTPException
 from fastapi import Request
+from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
 
 from onyx.auth.users import current_chat_accessible_user
 from onyx.chat.chat_state import ChatStateContainer
 from onyx.chat.process_message import gather_stream_full
 from onyx.chat.process_message import handle_stream_message_objects
 from onyx.configs.constants import PUBLIC_API_TAGS
+from onyx.configs.model_configs import LITELLM_PASS_THROUGH_HEADERS
 from onyx.db.engine.sql_engine import get_session_with_current_tenant
 from onyx.db.models import User
 from onyx.server.api_key_usage import check_api_key_usage
@@ -27,7 +27,6 @@ from onyx.server.query_and_chat.models import SendMessageRequest
 from onyx.server.query_and_chat.streaming_models import AgentResponseDelta
 from onyx.server.query_and_chat.streaming_models import Packet
 from onyx.server.query_and_chat.token_limit import check_token_rate_limits
-from onyx.configs.model_configs import LITELLM_PASS_THROUGH_HEADERS
 from trust_evidence_layer.audit_pack import AuditPackExporter
 from trust_evidence_layer.auth import REQUIRED_AUDIT_SCOPE
 from trust_evidence_layer.auth import REQUIRED_GATE_SCOPE
@@ -36,7 +35,6 @@ from trust_evidence_layer.auth import require_scope
 from trust_evidence_layer.registry import get_default_store
 
 router = APIRouter(prefix="/trust")
-
 
 
 def _require_claim(
@@ -144,9 +142,15 @@ def trust_stream_chat_message(
 def get_audit_pack(
     trace_id: str,
     claims: dict = Depends(claims_from_authorization_header),
-) -> dict:
+) -> FileResponse:
     _require_claim(REQUIRED_AUDIT_SCOPE, claims)
     exporter = AuditPackExporter(get_default_store())
     output_dir = os.getenv("TRUST_EVIDENCE_AUDIT_OUTPUT_DIR")
     zip_path = exporter.export_audit_pack(trace_id, output_dir=output_dir)
-    return {"trace_id": trace_id, "audit_pack_path": str(zip_path)}
+    download_name = f"audit_pack_{trace_id}.zip"
+    return FileResponse(
+        path=zip_path,
+        media_type="application/zip",
+        filename=download_name,
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
