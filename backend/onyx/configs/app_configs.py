@@ -21,6 +21,13 @@ APP_PORT = 8080
 # generally used if using a reverse proxy which doesn't support stripping the `/api`
 # prefix from requests directed towards the API server. In these cases, set this to `/api`
 APP_API_PREFIX = os.environ.get("API_PREFIX", "")
+TRUST_LAYER_HOOKS_ENABLED = (
+    os.environ.get("TRUST_LAYER_HOOKS_ENABLED", "").lower() == "true"
+)
+TRUST_LAYER_IMPL = os.environ.get("TRUST_LAYER_IMPL", "")
+CITATION_ATTRIBUTION_ENABLED = (
+    os.environ.get("CITATION_ATTRIBUTION_ENABLED", "").lower() == "true"
+)
 
 # Whether to send user metadata (user_id/email and session_id) to the LLM provider.
 # Disabled by default.

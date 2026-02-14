@@ -39,6 +39,9 @@ class ChatStateContainer:
         self.citation_to_doc: CitationMapping = {}
         # True if this turn is a clarification question (deep research flow)
         self.is_clarification: bool = False
+        # Trust/risk metadata for final response
+        self.hallucination_risk_flags: list[str] = []
+        self.trust_warnings: list[str] = []
         # Note: LLM cost tracking is now handled in multi_llm.py
 
     def add_tool_call(self, tool_call: ToolCallInfo) -> None:
@@ -60,6 +63,14 @@ class ChatStateContainer:
         """Set the citation mapping from citation processor."""
         with self._lock:
             self.citation_to_doc = citation_to_doc
+
+
+    def set_trust_risk_metadata(
+        self, hallucination_risk_flags: list[str], trust_warnings: list[str]
+    ) -> None:
+        with self._lock:
+            self.hallucination_risk_flags = hallucination_risk_flags
+            self.trust_warnings = trust_warnings
 
     def set_is_clarification(self, is_clarification: bool) -> None:
         """Set whether this turn is a clarification question."""
@@ -85,6 +96,15 @@ class ChatStateContainer:
         """Thread-safe getter for citation_to_doc (returns a copy)."""
         with self._lock:
             return self.citation_to_doc.copy()
+
+
+    def get_hallucination_risk_flags(self) -> list[str]:
+        with self._lock:
+            return self.hallucination_risk_flags.copy()
+
+    def get_trust_warnings(self) -> list[str]:
+        with self._lock:
+            return self.trust_warnings.copy()
 
     def get_is_clarification(self) -> bool:
         """Thread-safe getter for is_clarification."""
