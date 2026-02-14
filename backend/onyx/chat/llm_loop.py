@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -19,10 +20,15 @@ from onyx.chat.prompt_utils import build_system_prompt
 from onyx.chat.prompt_utils import (
     get_default_base_system_prompt,
 )
+from onyx.chat.trust_layer_utils import get_configured_trust_layer
 from onyx.configs.constants import DocumentSource
 from onyx.configs.constants import MessageType
 from onyx.context.search.models import SearchDoc
 from onyx.context.search.models import SearchDocsResponse
+from onyx.db.evidence import build_citation_to_evidence_record_map
+from onyx.db.evidence import get_evidence_records_by_message_id
+from onyx.db.evidence import persist_citation_evidence_map
+from onyx.db.evidence import persist_evidence_records
 from onyx.db.models import Persona
 from onyx.llm.interfaces import LLM
 from onyx.llm.interfaces import LLMUserIdentity
@@ -48,6 +54,10 @@ from onyx.tools.tool_runner import run_tool_calls
 from onyx.tracing.framework.create import trace
 from onyx.utils.logger import setup_logger
 from shared_configs.contextvars import get_current_tenant_id
+from trust_layer.adapters.onyx_adapter import OnyxTrustAdapter
+from trust_layer.events import TrustEvent
+from trust_layer.hook_utils import run_trust_hook_safe
+from trust_layer.risk import detect_hallucination_risk_flags
 
 logger = setup_logger()
 
@@ -298,6 +308,7 @@ def run_llm_loop(
     forced_tool_id: int | None = None,
     user_identity: LLMUserIdentity | None = None,
     chat_session_id: str | None = None,
+    assistant_message_id: int | None = None,
     include_citations: bool = True,
 ) -> None:
     with trace(
@@ -357,6 +368,15 @@ def run_llm_loop(
         default_base_system_prompt: str = get_default_base_system_prompt(db_session)
         system_prompt = None
         custom_agent_prompt_msg = None
+
+        trust_layer = get_configured_trust_layer()
+        request_id = str(uuid4())
+        trust_ctx = OnyxTrustAdapter.build_context(
+            request_id=request_id,
+            tenant_id=get_current_tenant_id(),
+            user_id=user_identity.user_id if user_identity else None,
+            chat_session_id=chat_session_id,
+        )
 
         reasoning_cycles = 0
         for llm_cycle_count in range(MAX_LLM_CYCLES):
@@ -468,6 +488,20 @@ def run_llm_loop(
                 available_tokens=available_tokens,
             )
 
+            run_trust_hook_safe(
+                layer=trust_layer,
+                event=TrustEvent.BEFORE_GENERATION,
+                ctx=trust_ctx,
+                logger=logger,
+                payload={
+                    "cycle": llm_cycle_count,
+                    "model": llm.config.model_name,
+                    "tool_choice": str(tool_choice),
+                    "history": [msg.model_dump(mode="json") for msg in truncated_message_history],
+                    "tools": [tool.name for tool in final_tools],
+                },
+            )
+
             # This calls the LLM, yields packets (reasoning, answers, etc.) and returns the result
             # It also pre-processes the tool calls in preparation for running them
             llm_step_result, has_reasoned = run_llm_step(
@@ -487,6 +521,42 @@ def run_llm_loop(
             )
             if has_reasoned:
                 reasoning_cycles += 1
+
+            retrieval_scores = [
+                doc.score
+                for doc in (gathered_documents or [])
+                if doc.score is not None
+            ]
+            hallucination_risk_flags, trust_warnings = detect_hallucination_risk_flags(
+                answer=llm_step_result.answer or "",
+                citation_count=len(citation_mapping),
+                evidence_count=len(gathered_documents or []),
+                retrieval_scores=retrieval_scores,
+            )
+            state_container.set_trust_risk_metadata(
+                hallucination_risk_flags=hallucination_risk_flags,
+                trust_warnings=trust_warnings,
+            )
+
+            generation_trace = OnyxTrustAdapter.build_generation_trace(
+                model=llm.config.model_name,
+                prompt_messages=[msg.model_dump(mode="json") for msg in truncated_message_history],
+                safety_flags=hallucination_risk_flags,
+                output_text=llm_step_result.answer or "",
+            )
+            run_trust_hook_safe(
+                layer=trust_layer,
+                event=TrustEvent.AFTER_GENERATION,
+                ctx=trust_ctx,
+                logger=logger,
+                payload={
+                    "cycle": llm_cycle_count,
+                    "trace": generation_trace.model_dump(mode="json"),
+                    "tool_calls": [tc.model_dump(mode="json") for tc in (llm_step_result.tool_calls or [])],
+                    "risk_flags": hallucination_risk_flags,
+                    "trust_warnings": trust_warnings,
+                },
+            )
 
             # Save citation mapping after each LLM step for incremental state updates
             state_container.set_citation_mapping(citation_processor.citation_to_doc)
@@ -512,6 +582,27 @@ def run_llm_loop(
             # 3. The citation_processor operates on SearchDoc objects and can't provide a complete reverse URL lookup for
             # in-flight citations
             # It can be cleaned up but not super trivial or worthwhile right now
+            retrieval_query = next(
+                (
+                    message.message
+                    for message in reversed(simple_chat_history)
+                    if message.message_type == MessageType.USER
+                ),
+                "",
+            )
+
+            run_trust_hook_safe(
+                layer=trust_layer,
+                event=TrustEvent.BEFORE_RETRIEVAL,
+                ctx=trust_ctx,
+                logger=logger,
+                payload={
+                    "cycle": llm_cycle_count,
+                    "query": retrieval_query,
+                    "tool_calls": [tc.model_dump(mode="json") for tc in tool_calls],
+                },
+            )
+
             just_ran_web_search = False
             parallel_tool_call_results = run_tool_calls(
                 tool_calls=tool_calls,
@@ -524,8 +615,55 @@ def run_llm_loop(
                 max_concurrent_tools=None,
                 skip_search_query_expansion=has_called_search_tool,
             )
+            retrieval_docs = OnyxTrustAdapter.extract_search_docs(
+                parallel_tool_call_results.tool_responses
+            )
+            retrieval_trace = OnyxTrustAdapter.build_retrieval_trace(
+                query=retrieval_query,
+                filters={},
+                top_k=len(retrieval_docs),
+                docs=retrieval_docs,
+            )
+            run_trust_hook_safe(
+                layer=trust_layer,
+                event=TrustEvent.AFTER_RETRIEVAL,
+                ctx=trust_ctx,
+                logger=logger,
+                payload={
+                    "cycle": llm_cycle_count,
+                    "trace": retrieval_trace.model_dump(mode="json"),
+                    "tool_response_count": len(parallel_tool_call_results.tool_responses),
+                },
+            )
+
             tool_responses = parallel_tool_call_results.tool_responses
             citation_mapping = parallel_tool_call_results.updated_citation_mapping
+
+            if assistant_message_id is not None and chat_session_id and retrieval_trace.results:
+                try:
+                    persist_evidence_records(
+                        db_session=db_session,
+                        request_id=request_id,
+                        chat_session_id=chat_session_id,
+                        message_id=assistant_message_id,
+                        evidence_items=retrieval_trace.results,
+                    )
+
+                    evidence_records = get_evidence_records_by_message_id(
+                        db_session=db_session,
+                        message_id=assistant_message_id,
+                    )
+                    citation_to_evidence_map = build_citation_to_evidence_record_map(
+                        citation_to_document_id=citation_mapping,
+                        evidence_records=evidence_records,
+                    )
+                    persist_citation_evidence_map(
+                        db_session=db_session,
+                        message_id=assistant_message_id,
+                        citation_to_evidence_record_id=citation_to_evidence_map,
+                    )
+                except Exception:
+                    logger.exception("Failed to persist evidence records; continuing fail-open")
 
             # Failure case, give something reasonable to the LLM to try again
             if tool_calls and not tool_responses:

@@ -2350,6 +2350,55 @@ class SearchQuery(Base):
     )
 
 
+class EvidenceRecord(Base):
+    __tablename__ = "evidence_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_id: Mapped[str] = mapped_column(String, index=True)
+    chat_session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("chat_session.id", ondelete="CASCADE"), index=True
+    )
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("chat_message.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    source_type: Mapped[str] = mapped_column(String, nullable=False)
+    source_uri: Mapped[str | None] = mapped_column(String, nullable=True)
+    chunk_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict[str, JSON_ro] | None] = mapped_column(
+        postgresql.JSONB(), nullable=True
+    )
+
+
+
+
+class CitationEvidenceMap(Base):
+    __tablename__ = "citation_evidence_map"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("chat_message.id", ondelete="CASCADE"), index=True
+    )
+    citation_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_record_id: Mapped[int] = mapped_column(
+        ForeignKey("evidence_records.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("message_id", "citation_number", name="uq_citation_evidence_map_message_citation"),
+    )
+
+
+
+
 """
 Feedback, Logging, Metrics Tables
 """

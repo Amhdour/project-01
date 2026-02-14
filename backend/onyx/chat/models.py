@@ -191,6 +191,15 @@ class ToolCallResponse(BaseModel):
     pre_reasoning: str | None = None
 
 
+class CitationAttribution(BaseModel):
+    citation_number: int
+    evidence_record_id: int
+    source_title: str | None = None
+    source_url: str | None = None
+    snippet: str | None = None
+    score: float | None = None
+
+
 class ChatFullResponse(BaseModel):
     """Complete non-streaming response with all available data."""
 
@@ -203,6 +212,9 @@ class ChatFullResponse(BaseModel):
     # Documents & citations
     top_documents: list[SearchDoc]
     citation_info: list[CitationInfo]
+    citation_attributions: list[CitationAttribution] | None = None
+    hallucination_risk_flags: list[str] | None = None
+    trust_warnings: list[str] | None = None
 
     # Metadata
     message_id: int

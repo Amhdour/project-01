@@ -25,6 +25,7 @@ from onyx.chat.llm_loop import run_llm_loop
 from onyx.chat.models import AnswerStream
 from onyx.chat.models import ChatBasicResponse
 from onyx.chat.models import ChatFullResponse
+from onyx.chat.models import CitationAttribution
 from onyx.chat.models import ChatLoadedFile
 from onyx.chat.models import CreateChatSessionID
 from onyx.chat.models import ExtractedProjectFiles
@@ -37,6 +38,7 @@ from onyx.chat.prompt_utils import calculate_reserved_tokens
 from onyx.chat.save_chat import save_chat_turn
 from onyx.chat.stop_signal_checker import is_connected as check_stop_signal
 from onyx.chat.stop_signal_checker import reset_cancel_status
+from onyx.configs.app_configs import CITATION_ATTRIBUTION_ENABLED
 from onyx.configs.constants import DEFAULT_PERSONA_ID
 from onyx.configs.constants import DocumentSource
 from onyx.configs.constants import MessageType
@@ -48,6 +50,7 @@ from onyx.db.chat import create_new_chat_message
 from onyx.db.chat import get_chat_session_by_id
 from onyx.db.chat import get_or_create_root_message
 from onyx.db.chat import reserve_message_id
+from onyx.db.evidence import get_citation_evidence_map_by_message_id
 from onyx.db.memory import get_memories
 from onyx.db.models import ChatMessage
 from onyx.db.models import ChatSession
@@ -653,6 +656,7 @@ def handle_stream_message_objects(
                 forced_tool_id=forced_tool_id,
                 user_identity=user_identity,
                 chat_session_id=str(chat_session.id),
+                assistant_message_id=assistant_response.id,
                 include_citations=new_msg_req.include_citations,
             )
 
@@ -877,6 +881,9 @@ def gather_stream(
         answer=answer,
         answer_citationless=remove_answer_citations(answer),
         citation_info=citations,
+        citation_attributions=citation_attributions,
+        hallucination_risk_flags=hallucination_risk_flags or None,
+        trust_warnings=trust_warnings or None,
         message_id=message_id,
         error_msg=error_msg,
         top_documents=top_documents,
@@ -887,6 +894,7 @@ def gather_stream(
 def gather_stream_full(
     packets: AnswerStream,
     state_container: ChatStateContainer,
+    db_session: Session | None = None,
 ) -> ChatFullResponse:
     """
     Aggregate streaming packets and state container into a complete ChatFullResponse.
@@ -936,6 +944,8 @@ def gather_stream_full(
 
     # Get reasoning from state container (None when model doesn't produce reasoning)
     reasoning = state_container.get_reasoning_tokens()
+    hallucination_risk_flags = state_container.get_hallucination_risk_flags()
+    trust_warnings = state_container.get_trust_warnings()
 
     # Convert ToolCallInfo list to ToolCallResponse list
     tool_call_responses = [
@@ -950,6 +960,26 @@ def gather_stream_full(
         for tc in state_container.get_tool_calls()
     ]
 
+    citation_attributions: list[CitationAttribution] | None = None
+    if CITATION_ATTRIBUTION_ENABLED and db_session is not None and message_id is not None:
+        evidence_by_citation = get_citation_evidence_map_by_message_id(
+            db_session=db_session, message_id=message_id
+        )
+        if evidence_by_citation:
+            citation_attributions = [
+                CitationAttribution(
+                    citation_number=citation_number,
+                    evidence_record_id=evidence_record.id,
+                    source_title=(evidence_record.metadata_json or {}).get("title")
+                    if isinstance(evidence_record.metadata_json, dict)
+                    else None,
+                    source_url=evidence_record.source_uri,
+                    snippet=evidence_record.snippet,
+                    score=evidence_record.score,
+                )
+                for citation_number, evidence_record in evidence_by_citation.items()
+            ]
+
     return ChatFullResponse(
         answer=final_answer,
         answer_citationless=remove_answer_citations(final_answer),
@@ -957,6 +987,9 @@ def gather_stream_full(
         tool_calls=tool_call_responses,
         top_documents=top_documents,
         citation_info=citations,
+        citation_attributions=citation_attributions,
+        hallucination_risk_flags=hallucination_risk_flags or None,
+        trust_warnings=trust_warnings or None,
         message_id=message_id,
         chat_session_id=chat_session_id,
         error_msg=error_msg,

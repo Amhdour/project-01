@@ -106,3 +106,9 @@ Join our open source community on **[Discord](https://discord.gg/TDJ59cGV2X)**!
 
 ## 💡 Contributing
 Looking to contribute? Please check out the [Contribution Guide](CONTRIBUTING.md) for more details.
+
+## 🧭 Trust Layer Runbook (Repo Additions)
+For a concrete, code-anchored summary of the trust/evidence work in this repo (hooks, evidence persistence, citation attribution, and export endpoint), see:
+
+- [`docs/trust_layer.md`](docs/trust_layer.md)
+
